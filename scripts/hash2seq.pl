@@ -97,8 +97,6 @@ sub usage{
   Usage: $0 [options] ref.fasta hash1 [hash2...]
   NOTE: ref.fasta nucleotides will be transformed into uppercase for hashing.
 
-  --max-snps  How many SNPs to mutate away from the reference sequence
-              Default: 3
   --help      This useful help menu
   \n";
   exit 0;

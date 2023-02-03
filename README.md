@@ -8,7 +8,13 @@ hash2seq.pl: brute forces a sequence given a reference sequence and a hash
   Usage: hash2seq.pl [options] ref.fasta hash1 [hash2...]
   NOTE: ref.fasta nucleotides will be transformed into uppercase for hashing.
 
-  --help      This useful help menu
+  --quick-stop Stop if the hash was found. Assume no collisions.
+               This hasn't been benchmarked, but I assume it is faster.
+  --max-snps   Max num of SNPs to mutate away from the reference sequence
+               Default: 3
+  --print-all  Print all combinations of sequences with their hashes
+               and then exit.
+  --help       This useful help menu
 ```
 
 ```text

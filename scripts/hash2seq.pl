@@ -5,11 +5,12 @@ use strict;
 use Data::Dumper;
 use Getopt::Long;
 use File::Basename qw/basename/;
+use List::MoreUtils qw/uniq/;
 
 use Digest::MD5 qw/md5_hex/;
 
 use version 0.77;
-our $VERSION = '0.1.1';
+our $VERSION = '0.2.0';
 
 our @NT = qw(A C G T);
 
@@ -19,24 +20,65 @@ exit(main());
 
 sub main{
   my $settings={};
-  GetOptions($settings,qw(max-snps=i help)) or die $!;
-  usage() if($$settings{help} || @ARGV < 2);
+  GetOptions($settings,qw(print-all max-snps=i quick-stop help)) or die $!;
+  usage() if($$settings{help} || @ARGV < 1);
 
-  $$settings{'max-snps'} ||= 5;
+  $$settings{'max-snps'} ||= 3;
 
   my $refFasta = shift(@ARGV);
   my $refSequence = readSingleSequence($refFasta, $settings);
 
-  for my $hash(@ARGV){
-    $hash = lc($hash);
-    my $seq = hash2seq($refSequence, $hash, $$settings{'max-snps'}, $settings);
-    print join("\t", $hash, $seq)."\n";
+  my @combinations = dna_mutations($refSequence, $$settings{'max-snps'}, 0);
+  if($$settings{'print-all'}){
+    printAllSequenceHashes(\@combinations);
+    return 0;
+  }
+
+  # Look at lowercase hashes to standardize comparisons
+  my @seqHash = map{lc($_)} @ARGV;
+
+  if(@seqHash < 1){
+    logmsg "WARNING: no hashes were supplied!";
+    usage();
+  }
+
+  # Keep track of which hashes are missing seqs
+  my %missingSeq = map{$_=>1} @seqHash;
+  COMBINATION:
+  for my $seq(@combinations){
+
+    for my $hash(@seqHash){
+      if(checkHash($seq, $hash)){
+        print join("\t", $hash, $seq)."\n";
+        #$hash_was_found = 1;
+
+        # If quick stop, remove this hash from consideration
+        # once found.
+        if($$settings{'quick-stop'}){
+          @seqHash = grep{$_ ne $hash} @seqHash;
+          if(!@seqHash){
+            last COMBINATION;
+          }
+        }
+      }
+    }
   }
 
   return 0;
 }
 
-# quick and dirty to read a single entry in a fasta file
+sub printAllSequenceHashes{
+  my($combinations) = @_;
+
+  for my $c(@$combinations){
+    print join("\t", $c, md5_hex($c))."\n";
+  }
+
+  return scalar(@$combinations);
+}
+
+# quick and dirty to read a single entry in a fasta file.
+# Other sequences are ignored.
 sub readSingleSequence{
   my($fasta, $settings) = @_;
   open(my $fh, $fasta) or die "ERROR: could not read $fasta: $!";
@@ -56,32 +98,42 @@ sub readSingleSequence{
 
   return uc($seq);
 }
-  
 
-sub hash2seq{
-  my($refSequence, $hash, $maxSnps, $settings) = @_;
+# Make all possible DNA mutations in a sequence and
+# return them in an array.
+sub dna_mutations {
+  my ($dna, $num_mutations, $start) = @_;
 
-  my $seqLength = length($refSequence);
-  my $currentMutationCount = 0;
+  # The four possible nucleotides
+  my @nucleotides = ('A', 'C', 'G', 'T');
 
-  for(my $i=0; $i<$seqLength; $i++){
+  # Create an array to store the combinations
+  my @combinations;
 
-    # Reset to the reference before any SNPs are introduced
-    my $newSequence = $refSequence;
-    for my $nt(@NT){
-      # introduce the first mutation
-      substr($newSequence, $i, 1) = $nt;
-      #logmsg $newSequence;
+  # Base case: if we have reached the desired number of mutations, add the new DNA sequence to the list of combinations
+  if ($num_mutations == 0) {
+    push @combinations, $dna;
+    return @combinations;
+  }
 
-      if(checkHash($newSequence, $hash)){
-        #logmsg "Found sequence! $newSequence";
-        return $newSequence;
-      }
+  # Loop through the sequence
+  for (my $i = 0; $i < length($dna); $i++) {
+    # Loop through the nucleotides
+    foreach my $nucleotide (@nucleotides) {
+      # Skip if the nucleotide is already present
+      next if substr($dna, $i, 1) eq $nucleotide;
+
+      # Create a new DNA sequence with the mutation
+      my $new_dna = substr($dna, 0, $i) . $nucleotide . substr($dna, $i + 1);
+
+      # Recursively call the subroutine to find the remaining mutations
+      push @combinations, dna_mutations($new_dna, $num_mutations - 1, $i + 1);
     }
   }
-  
-  return 0;
-}
+
+  @combinations = uniq(@combinations);
+  return @combinations;
+} 
 
 sub checkHash{
   my($seq, $hash, $settings) = @_;
@@ -97,9 +149,13 @@ sub usage{
   Usage: $0 [options] ref.fasta hash1 [hash2...]
   NOTE: ref.fasta nucleotides will be transformed into uppercase for hashing.
 
-  --max-snps  How many SNPs to mutate away from the reference sequence
-              Default: 3
-  --help      This useful help menu
+  --quick-stop Stop if the hash was found. Assume no collisions.
+               This hasn't been benchmarked, but I assume it is faster.
+  --max-snps   Max num of SNPs to mutate away from the reference sequence
+               Default: 3
+  --print-all  Print all combinations of sequences with their hashes 
+               and then exit.
+  --help       This useful help menu
   \n";
   exit 0;
 }

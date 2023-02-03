@@ -27,6 +27,7 @@ WriteMakefile1(
     'version'        => 0.77,
     'Getopt::Long'   => 0,
     'Digest::MD5'    => 0,
+    'List::MoreUtils'=> 0,
   },
   BUILD_REQUIRES => {
     'Test::More'     => 0.47,

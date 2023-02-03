@@ -19,7 +19,7 @@ subtest 'single mutation' => sub{
   my $exp_1 = 'e8650cab190c617a480c43d607b19726';
   my $exp_X = 'd85fab85b29a8c26f89a4a3b46ec36a6';
   
-  my @obs = `hash2seq.pl --max-snps 1 $thisDir/senterica/aroC.tfa $exp_1 $exp_X`;
+  my @obs = `hash2seq.pl --max-snps 2 $thisDir/senterica/aroC.tfa $exp_1 $exp_X`;
   chomp(@obs);
 
   my ($hash1, $seq1) = split(/\t/, $obs[0]);
